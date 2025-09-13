@@ -24,7 +24,8 @@ def get_tts_engine_options():
     return {
         "edge_tts": "Edge TTS",
         "azure_speech": "Azure Speech Services",
-        "soulvoice": "SoulVoice"
+        "soulvoice": "SoulVoice",
+        "local_tts": "本地TTS (离线)"
     }
 
 
@@ -48,6 +49,12 @@ def get_tts_engine_descriptions():
             "features": "提供免费额度，支持语音克隆，支持微信购买额度，无需信用卡，性价比极高",
             "use_case": "个人用户和中小企业，需要语音克隆功能",
             "registration": "https://soulvoice.scsmtech.cn/"
+        },
+        "local_tts": {
+            "title": "本地TTS (离线)",
+            "features": "完全离线，调用本地模型，适合隐私和无外网环境，支持自定义模型",
+            "use_case": "本地部署、隐私保护、无外网环境",
+            "registration": None
         }
     }
 
@@ -120,12 +127,19 @@ def render_tts_settings(tr):
     # 3. 根据选择的引擎渲染对应的配置界面
     # st.subheader("⚙️ 引擎配置")
 
+
     if selected_engine == "edge_tts":
         render_edge_tts_settings(tr)
     elif selected_engine == "azure_speech":
         render_azure_speech_settings(tr)
     elif selected_engine == "soulvoice":
         render_soulvoice_engine_settings(tr)
+    elif selected_engine == "local_tts":
+        # 本地TTS配置（可扩展）
+        st.info("本地TTS将调用本地模型，无需配置网络参数。可在下方试听。")
+        # 允许自定义voice_name
+        local_voice_name = st.text_input("本地TTS音色标识（可选，默认local:default）", value="local:default")
+        config.ui["local_voice_name"] = local_voice_name
 
     # 4. 试听功能
     render_voice_preview_new(tr, selected_engine)
@@ -453,6 +467,10 @@ def render_voice_preview_new(tr, selected_engine):
                     voice_name = voice_uri if voice_uri.startswith("soulvoice:") else f"soulvoice:{voice_uri}"
             voice_rate = 1.0  # SoulVoice 使用默认语速
             voice_pitch = 1.0  # SoulVoice 不支持音调调节
+        elif selected_engine == "local_tts":
+            voice_name = config.ui.get("local_voice_name", "local:default")
+            voice_rate = 1.0
+            voice_pitch = 1.0
 
         if not voice_name:
             st.error("请先配置语音设置")

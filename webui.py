@@ -196,8 +196,11 @@ _HAS_LOGGED_HWACCEL_INFO = False
 def main():
     """主函数"""
     global _HAS_LOGGED_HWACCEL_INFO
+
     init_log()
     init_global_state()
+
+    # 本地TTS服务需手动单独启动，NarratoAI仅负责调用
 
     # 检测FFmpeg硬件加速，但只打印一次日志
     hwaccel_info = ffmpeg_utils.detect_hardware_acceleration()

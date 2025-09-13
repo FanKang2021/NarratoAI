@@ -1,0 +1,4 @@
+conda activate tts
+python -m TTS.server.server --model_name tts_models/zh-CN/baker/tacotron2-DDC-GST --port 5002
+conda activate narratoai
+streamlit run webui.py --server.maxUploadSize=2048

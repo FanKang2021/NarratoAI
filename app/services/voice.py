@@ -23,6 +23,58 @@ import time
 from app.config import config
 from app.utils import utils
 
+def local_tts(text: str, voice_name: str, voice_rate: float, voice_pitch: float, voice_file: str) -> Union[SubMaker, None]:
+    """
+    调用本地TTS服务（如 TTS/server/server.py），将文本合成为音频文件
+    """
+    TTS_API = "http://localhost:5002/api/tts"
+    for attempt in range(3):
+        try:
+            params = {
+                "text": text
+            }
+            response = requests.post(TTS_API, data=params, timeout=60)
+            if response.status_code == 200:
+                with open(voice_file, 'wb') as f:
+                    f.write(response.content)
+                logger.info(f"本地TTS成功生成音频: {voice_file}")
+                sub_maker = SubMaker()
+                sub_maker.subs = [text]
+                sub_maker.offset = [(0, 0)]
+                return sub_maker
+            else:
+                logger.error(f"本地TTS API 调用失败: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"本地TTS调用异常: {e}")
+        if attempt < 2:
+            time.sleep(2)
+    logger.error("本地TTS生成失败，已达到最大重试次数")
+    return None
+import os
+import re
+import json
+import traceback
+import edge_tts
+import asyncio
+import requests
+from loguru import logger
+from typing import List, Union, Tuple
+from datetime import datetime
+from xml.sax.saxutils import unescape
+from edge_tts import submaker, SubMaker
+# from edge_tts.submaker import mktimestamp  # 函数可能不存在，我们自己实现
+from moviepy.video.tools import subtitles
+try:
+    from moviepy import AudioFileClip
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
+    logger.warning("moviepy 未安装，将使用估算方法计算音频时长")
+import time
+
+from app.config import config
+from app.utils import utils
+
 
 def mktimestamp(time_seconds: float) -> str:
     """
@@ -1082,14 +1134,15 @@ def should_use_azure_speech_services(voice_name: str) -> bool:
 def tts(
     text: str, voice_name: str, voice_rate: float, voice_pitch: float, voice_file: str
 ) -> Union[SubMaker, None]:
+    # 检查是否为本地TTS
+    if voice_name.startswith("local:"):
+        return local_tts(text, voice_name, voice_rate, voice_pitch, voice_file)
     # 检查是否为 SoulVoice 引擎
     if is_soulvoice_voice(voice_name):
         return soulvoice_tts(text, voice_name, voice_file, speed=voice_rate)
-
     # 检查是否应该使用 Azure Speech Services
     if should_use_azure_speech_services(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
-
     # 默认使用 Edge TTS (Azure V1)
     return azure_tts_v1(text, voice_name, voice_rate, voice_pitch, voice_file)
 
@@ -1493,7 +1546,7 @@ def tts_multiple(task_id: str, list_script: list, voice_name: str, voice_rate: f
     :param voice_rate: 语音速率
     :return: 生成的音频文件列表
     """
-    voice_name = parse_voice_name(voice_name)
+    # 不要在这里 parse_voice_name，保留原始 voice_name 以便 tts() 能正确识别 local: 前缀
     output_dir = utils.task_dir(task_id)
     tts_results = []
 
