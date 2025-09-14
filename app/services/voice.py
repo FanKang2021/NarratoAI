@@ -1080,10 +1080,6 @@ Gender: Male
         if line.startswith("Gender: "):
             gender = line[8:].strip()
             if name and gender:
-                # voices.append({
-                #     "name": name,
-                #     "gender": gender,
-                # })
                 if filter_locals:
                     for filter_local in filter_locals:
                         if name.lower().startswith(filter_local.lower()):
@@ -1134,9 +1130,14 @@ def should_use_azure_speech_services(voice_name: str) -> bool:
 def tts(
     text: str, voice_name: str, voice_rate: float, voice_pitch: float, voice_file: str
 ) -> Union[SubMaker, None]:
-    # 检查是否为本地TTS
-    if voice_name.startswith("local:"):
-        return local_tts(text, voice_name, voice_rate, voice_pitch, voice_file)
+    # 检查是否为 SoulVoice 引擎
+    if is_soulvoice_voice(voice_name):
+        return soulvoice_tts(text, voice_name, voice_file, speed=voice_rate)
+    # 检查是否应该使用 Azure Speech Services
+    if should_use_azure_speech_services(voice_name):
+        return azure_tts_v2(text, voice_name, voice_file)
+    # 默认使用 Edge TTS (Azure V1)
+    return azure_tts_v1(text, voice_name, voice_rate, voice_pitch, voice_file)
     # 检查是否为 SoulVoice 引擎
     if is_soulvoice_voice(voice_name):
         return soulvoice_tts(text, voice_name, voice_file, speed=voice_rate)
@@ -1179,7 +1180,8 @@ def azure_tts_v1(
             logger.info(f"第 {i+1} 次使用 edge_tts 生成音频")
 
             async def _do() -> tuple[SubMaker, bytes]:
-                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str, pitch=pitch_str, proxy=config.proxy.get("http"))
+                proxy = config.proxy.get("http") if config.proxy.get("enabled") and config.proxy.get("http") else None
+                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str, pitch=pitch_str, proxy=proxy)
                 sub_maker = edge_tts.SubMaker()
                 audio_data = bytes()  # 用于存储音频数据
                 
